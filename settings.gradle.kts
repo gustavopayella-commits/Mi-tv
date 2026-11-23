@@ -1,5 +1,4 @@
 
-
 pluginManagement {
     repositories {
         google()
@@ -17,5 +16,4 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "MITV"
-
 include(":app")
