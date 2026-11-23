@@ -2,8 +2,8 @@
 package com.mitv.app
 
 import android.os.Bundle
-import android.graphics.Color
-import android.view.ViewGroup
+import android.view.Gravity
+import android.view.View
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.media3.common.MediaItem
@@ -14,194 +14,189 @@ import java.net.HttpURLConnection
 import java.net.URL
 import kotlin.concurrent.thread
 
-data class Channel(
-    val name: String,
-    val url: String,
-    val category: String
-)
-
 class MainActivity : AppCompatActivity() {
 
-    private var player: ExoPlayer? = null
-    private lateinit var list: LinearLayout
+    private lateinit var player: ExoPlayer
+    private lateinit var playerView: PlayerView
+    private lateinit var channelList: LinearLayout
     private lateinit var status: TextView
+
     private val channels = mutableListOf<Channel>()
+
+    data class Channel(
+        val name: String,
+        val url: String,
+        val category: String
+    )
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        window.decorView.setBackgroundColor(Color.rgb(7, 11, 22))
+        window.statusBarColor = android.graphics.Color.rgb(8, 12, 30)
+        window.navigationBarColor = android.graphics.Color.BLACK
 
+        createInterface()
+        loadChannels()
+    }
+
+    private fun createInterface() {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(14, 10, 14, 10)
+            setBackgroundColor(android.graphics.Color.rgb(8, 12, 30))
+            setPadding(16, 16, 16, 16)
         }
 
         val title = TextView(this).apply {
             text = "MI TV"
-            textSize = 24f
-            setTextColor(Color.WHITE)
-            setPadding(4, 4, 4, 8)
+            textSize = 30f
+            gravity = Gravity.CENTER
+            setTextColor(android.graphics.Color.CYAN)
         }
-
-        root.addView(title)
-
-        val pv = PlayerView(this).apply {
-            useController = true
-            player = ExoPlayer.Builder(this@MainActivity)
-                .build()
-                .also {
-                    this@MainActivity.player = it
-                }
-        }
-
-        root.addView(
-            pv,
-            LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                0,
-                1.2f
-            )
-        )
 
         status = TextView(this).apply {
-            text = "Conectando con el servidor…"
-            setTextColor(Color.LTGRAY)
-            setPadding(4, 8, 4, 8)
+            text = "Conectando al servidor..."
+            textSize = 14f
+            setTextColor(android.graphics.Color.WHITE)
+            gravity = Gravity.CENTER
+            setPadding(8, 12, 8, 12)
         }
 
-        root.addView(status)
+        playerView = PlayerView(this).apply {
+            useController = true
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                220
+            )
+        }
 
-        val scroll = ScrollView(this)
-
-        list = LinearLayout(this).apply {
+        channelList = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
         }
 
-        scroll.addView(list)
+        val scroll = ScrollView(this).apply {
+            addView(channelList)
+        }
 
-        root.addView(
-            scroll,
-            LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                0,
-                1f
-            )
-        )
+        root.addView(title)
+        root.addView(status)
+        root.addView(playerView)
+        root.addView(scroll, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            0,
+            1f
+        ))
 
         setContentView(root)
 
-        loadChannels()
+        player = ExoPlayer.Builder(this).build()
+        playerView.player = player
     }
 
     private fun loadChannels() {
         thread {
             try {
-                val conn = (URL(
+                val connection = URL(
                     BuildConfig.API_BASE + "?action=channels"
-                ).openConnection() as HttpURLConnection).apply {
-                    connectTimeout = 15000
-                    readTimeout = 20000
-                    requestMethod = "GET"
-                }
+                ).openConnection() as HttpURLConnection
 
-                val raw = conn.inputStream.bufferedReader().use {
+                connection.requestMethod = "GET"
+                connection.connectTimeout = 15000
+                connection.readTimeout = 15000
+
+                val response = connection.inputStream.bufferedReader().use {
                     it.readText()
                 }
 
-                val arr = JSONObject(raw).getJSONArray("channels")
-                val result = mutableListOf<Channel>()
+                connection.disconnect()
 
-                for (i in 0 until arr.length()) {
-                    val o = arr.getJSONObject(i)
+                val json = JSONObject(response)
+                val array = json.optJSONArray("channels")
 
-                    result.add(
-                        Channel(
-                            o.optString("name"),
-                            o.optString("url"),
-                            o.optString("category", "General")
-                        )
-                    )
+                channels.clear()
+
+                if (array != null) {
+                    for (i in 0 until array.length()) {
+                        val item = array.getJSONObject(i)
+
+                        val name = item.optString("name")
+                        val url = item.optString("url")
+                        val category = item.optString("category", "General")
+
+                        if (name.isNotBlank() && url.isNotBlank()) {
+                            channels.add(Channel(name, url, category))
+                        }
+                    }
                 }
 
-                conn.disconnect()
-
                 runOnUiThread {
-                    channels.clear()
-                    channels.addAll(result)
-
-                    status.text =
-                        "${channels.size} canales · Servidor MI TV"
-
-                    renderChannels()
+                    status.text = "Canales encontrados: ${channels.size}"
+                    showChannels()
                 }
 
             } catch (e: Exception) {
                 runOnUiThread {
-                    status.text =
-                        "No se pudo conectar al servidor. Revisá la instalación y la conexión."
+                    status.text = "Error de conexión: ${e.message}"
                 }
             }
         }
     }
 
-    private fun renderChannels() {
-        list.removeAllViews()
+    private fun showChannels() {
+        channelList.removeAllViews()
 
-        var last = ""
+        if (channels.isEmpty()) {
+            val empty = TextView(this).apply {
+                text = "No hay canales disponibles"
+                textSize = 17f
+                setTextColor(android.graphics.Color.WHITE)
+                setPadding(12, 24, 12, 24)
+            }
+            channelList.addView(empty)
+            return
+        }
 
-        channels.forEach { ch ->
+        channels.forEach { channel ->
+            val button = Button(this).apply {
+                text = "${channel.name}  •  ${channel.category}"
+                textSize = 15f
+                setTextColor(android.graphics.Color.WHITE)
+                setBackgroundColor(android.graphics.Color.rgb(24, 38, 70))
+                isAllCaps = false
 
-            if (ch.category != last) {
-                last = ch.category
-
-                list.addView(
-                    TextView(this).apply {
-                        text = last.uppercase()
-                        textSize = 12f
-                        setTextColor(Color.rgb(0, 183, 255))
-                        setPadding(8, 12, 8, 5)
-                    }
-                )
+                setOnClickListener {
+                    playChannel(channel.url)
+                    status.text = "Reproduciendo: ${channel.name}"
+                }
             }
 
-            list.addView(
-                TextView(this).apply {
-                    text = "▶  ${ch.name}"
-                    textSize = 16f
-                    setTextColor(Color.WHITE)
-                    setPadding(12, 12, 12, 12)
-                    setOnClickListener {
-                        play(ch)
-                    }
-                }
+            val params = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
             )
+            params.setMargins(0, 6, 0, 6)
+
+            channelList.addView(button, params)
         }
     }
 
-    private fun play(ch: Channel) {
+    private fun playChannel(url: String) {
         try {
-            val item = MediaItem.fromUri(ch.url)
-
-            player?.setMediaItem(item)
-            player?.prepare()
-            player?.play()
-
-            status.text = "Reproduciendo: ${ch.name}"
-
+            val mediaItem = MediaItem.fromUri(url)
+            player.setMediaItem(mediaItem)
+            player.prepare()
+            player.play()
         } catch (e: Exception) {
-            status.text = "No se pudo abrir este canal: ${ch.name}"
+            status.text = "No se pudo reproducir el canal"
         }
     }
 
     override fun onStop() {
         super.onStop()
-        player?.pause()
+        if (::player.isInitialized) player.pause()
     }
 
     override fun onDestroy() {
-        player?.release()
-        player = null
         super.onDestroy()
+        if (::player.isInitialized) player.release()
     }
 }
