@@ -1,3 +1,5 @@
+YAML
+
 - name: Verificar AndroidManifest
   run: |
     python3 -c "import xml.etree.ElementTree as ET; ET.parse('app/src/main/AndroidManifest.xml'); print('MANIFEST XML CORRECTO')"
