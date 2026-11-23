@@ -3,8 +3,8 @@ package com.mitv.app
 
 import android.os.Bundle
 import android.view.Gravity
-import android.view.View
 import android.widget.*
+import android.graphics.Color
 import androidx.appcompat.app.AppCompatActivity
 import androidx.media3.common.MediaItem
 import androidx.media3.exoplayer.ExoPlayer
@@ -16,7 +16,7 @@ import kotlin.concurrent.thread
 
 class MainActivity : AppCompatActivity() {
 
-    private lateinit var player: ExoPlayer
+    private var player: ExoPlayer? = null
     private lateinit var playerView: PlayerView
     private lateinit var channelList: LinearLayout
     private lateinit var status: TextView
@@ -32,17 +32,26 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        window.statusBarColor = android.graphics.Color.rgb(8, 12, 30)
-        window.navigationBarColor = android.graphics.Color.BLACK
+        try {
+            window.statusBarColor = Color.rgb(8, 12, 30)
+            window.navigationBarColor = Color.BLACK
 
-        createInterface()
-        loadChannels()
+            createInterface()
+            loadChannels()
+
+        } catch (e: Exception) {
+            Toast.makeText(
+                this,
+                "Error al iniciar MI TV: ${e.message}",
+                Toast.LENGTH_LONG
+            ).show()
+        }
     }
 
     private fun createInterface() {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(android.graphics.Color.rgb(8, 12, 30))
+            setBackgroundColor(Color.rgb(8, 12, 30))
             setPadding(16, 16, 16, 16)
         }
 
@@ -50,13 +59,13 @@ class MainActivity : AppCompatActivity() {
             text = "MI TV"
             textSize = 30f
             gravity = Gravity.CENTER
-            setTextColor(android.graphics.Color.CYAN)
+            setTextColor(Color.CYAN)
         }
 
         status = TextView(this).apply {
             text = "Conectando al servidor..."
             textSize = 14f
-            setTextColor(android.graphics.Color.WHITE)
+            setTextColor(Color.WHITE)
             gravity = Gravity.CENTER
             setPadding(8, 12, 8, 12)
         }
@@ -80,11 +89,15 @@ class MainActivity : AppCompatActivity() {
         root.addView(title)
         root.addView(status)
         root.addView(playerView)
-        root.addView(scroll, LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            0,
-            1f
-        ))
+
+        root.addView(
+            scroll,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                0,
+                1f
+            )
+        )
 
         setContentView(root)
 
@@ -123,7 +136,9 @@ class MainActivity : AppCompatActivity() {
                         val category = item.optString("category", "General")
 
                         if (name.isNotBlank() && url.isNotBlank()) {
-                            channels.add(Channel(name, url, category))
+                            channels.add(
+                                Channel(name, url, category)
+                            )
                         }
                     }
                 }
@@ -148,19 +163,20 @@ class MainActivity : AppCompatActivity() {
             val empty = TextView(this).apply {
                 text = "No hay canales disponibles"
                 textSize = 17f
-                setTextColor(android.graphics.Color.WHITE)
+                setTextColor(Color.WHITE)
                 setPadding(12, 24, 12, 24)
             }
+
             channelList.addView(empty)
             return
         }
 
         channels.forEach { channel ->
             val button = Button(this).apply {
-                text = "${channel.name}  •  ${channel.category}"
+                text = "${channel.name} • ${channel.category}"
                 textSize = 15f
-                setTextColor(android.graphics.Color.WHITE)
-                setBackgroundColor(android.graphics.Color.rgb(24, 38, 70))
+                setTextColor(Color.WHITE)
+                setBackgroundColor(Color.rgb(24, 38, 70))
                 isAllCaps = false
 
                 setOnClickListener {
@@ -173,18 +189,18 @@ class MainActivity : AppCompatActivity() {
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
             )
-            params.setMargins(0, 6, 0, 6)
 
+            params.setMargins(0, 6, 0, 6)
             channelList.addView(button, params)
         }
     }
 
     private fun playChannel(url: String) {
         try {
-            val mediaItem = MediaItem.fromUri(url)
-            player.setMediaItem(mediaItem)
-            player.prepare()
-            player.play()
+            val currentPlayer = player ?: return
+            currentPlayer.setMediaItem(MediaItem.fromUri(url))
+            currentPlayer.prepare()
+            currentPlayer.play()
         } catch (e: Exception) {
             status.text = "No se pudo reproducir el canal"
         }
@@ -192,11 +208,13 @@ class MainActivity : AppCompatActivity() {
 
     override fun onStop() {
         super.onStop()
-        if (::player.isInitialized) player.pause()
+        player?.pause()
     }
 
     override fun onDestroy() {
+        playerView.player = null
+        player?.release()
+        player = null
         super.onDestroy()
-        if (::player.isInitialized) player.release()
     }
 }
