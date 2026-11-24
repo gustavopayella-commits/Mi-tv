@@ -39,8 +39,19 @@ jobs:
         with:
           gradle-version: '8.9'
 
+      
+      - name: Diagnosticar configuración Gradle
+        run: |
+          echo "=== ARCHIVOS DE LA RAIZ ==="
+          ls -la
+          echo "=== SETTINGS GRADLE KTS ==="
+          cat settings.gradle.kts
+          echo "=== BUILD GRADLE KTS ==="
+          cat build.gradle.kts
+
       - name: Compilar APK
-        run: gradle assembleDebug --stacktrace
+        run: gradle assembleDebug --info --stacktrace
+
 
       - name: Guardar APK
         uses: actions/upload-artifact@v4
